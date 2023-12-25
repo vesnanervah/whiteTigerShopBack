@@ -5,3 +5,5 @@ type BaseResponse<T> = {
     }
     data?: T;
 }
+
+export { BaseResponse };
