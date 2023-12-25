@@ -4,6 +4,8 @@ import bodyParser from 'body-parser';
 import { PendingEmails } from './types/pending-emails';
 import nodemailer from 'nodemailer';
 import { EmailConfirmByCodeBody, EmailConfirmInitBody } from './types/email-confirm';
+import { BaseResponse } from './types/base-response';
+import 'dotenv/config'
 
 const PORT = 5000;
 const app = express();
@@ -80,8 +82,8 @@ app.listen(PORT, () => {
 
 
 function sendCodeToEmail(code: string, reciever: string) {
-    const user = 'c.zwerew2012@gmail.com';
-    const pass = 'ptvl zbrt dbuz aqwh';
+    const user = process.env.SENDER;
+    const pass = process.env.APP_KEY;
     const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
