@@ -6,6 +6,9 @@ import nodemailer from 'nodemailer';
 import { EmailConfirmByCodeBody, EmailConfirmInitBody } from './types/email-confirm';
 import { BaseResponse } from './types/base-response';
 import 'dotenv/config'
+import crypto from 'crypto';
+import { SavedTokens } from './types/saved-tokens';
+import { LoginByTokenReqBody } from './types/login-by-token';
 
 const PORT = 5000;
 const app = express();
@@ -14,6 +17,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 const pendingEmails: PendingEmails = {};
+const savedTokens: SavedTokens = {};
 
 app.get('/', (req, res) => {
     res.send({hello: 'welcome to the api'});
@@ -28,7 +32,7 @@ app.post('/init-email-confirm', async (req, res) => {
                     success: true,
                     error: ''
                 },
-                data: `Code is already generated. Check your email.`//  Only in debug sense. Delete later.
+                data: `Code is already generated. Check your email.`
             } 
             res.send(response);
         } else {
@@ -54,12 +58,14 @@ app.post('/confirm-email-by-code', (req, res) => {
     // TODO: required fields check
     const {code, email} = (req.body as EmailConfirmByCodeBody);
     if (code === pendingEmails[email]) {
+        const token = createToken();
+        savedTokens[email] = token;
         const response: BaseResponse<String> = {
             meta: {
                 success: true,
                 error: ''
             },
-            data: 'You have successfuly loged in'
+            data: token
         } 
         res.send(response);
     } else {
@@ -72,7 +78,28 @@ app.post('/confirm-email-by-code', (req, res) => {
         }
         res.send(response);
     }
+});
 
+app.post('/login-by-token', (req, resp) => {
+    const {email, token} = req.body as LoginByTokenReqBody;
+    if (savedTokens[email] && savedTokens[email] === token) {
+        const response: BaseResponse<string> = {
+            meta: {
+                success: true,
+                error: ''
+            }, 
+            data: 'Successful loged in'
+        }
+        resp.send(response);
+    } else {
+        const response: BaseResponse<undefined> = {
+            meta: {
+                success: false,
+                error: 'Token expired or undefined'
+            }
+        }
+        resp.send(response);
+    }
 });
 
 
@@ -98,3 +125,8 @@ function sendCodeToEmail(code: string, reciever: string) {
         };
     return transporter.sendMail(mailOptions);
 }
+
+function createToken() {
+    return crypto.randomBytes(30).toString('hex');
+}
+
