@@ -1,13 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-import { PendingEmails } from './types/pending-emails';
 import nodemailer from 'nodemailer';
 import { EmailConfirmByCodeBody, EmailConfirmInitBody } from './types/email-confirm';
 import { BaseResponse } from './types/base-response';
 import 'dotenv/config'
 import crypto from 'crypto';
-import { SavedTokens } from './types/saved-tokens';
 import { LoginByTokenReqBody } from './types/login-by-token';
 
 const PORT = 5000;
@@ -16,17 +14,18 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-const pendingEmails: PendingEmails = {};
-const savedTokens: SavedTokens = {};
+const pendingEmails = new Map<string, string>();
+const savedTokens = new Map<string, string>();
 
 app.get('/', (req, res) => {
     res.send({hello: 'welcome to the api'});
 });
 
+
 app.post('/init-email-confirm', async (req, res) => {
     if ((req.body as EmailConfirmInitBody).email) {
         const email = (req.body as EmailConfirmInitBody).email;
-        if (pendingEmails[email]) {
+        if (pendingEmails.has(email)) {
             const response: BaseResponse<String> = {
                 meta: {
                     success: true,
@@ -36,9 +35,9 @@ app.post('/init-email-confirm', async (req, res) => {
             } 
             res.send(response);
         } else {
-            const code = '123' // TODO: make randome generation
+            const code = generateRandomCode();
             await sendCodeToEmail(code, email);
-            pendingEmails[email] = code;
+            pendingEmails.set(email, code);
             const response: BaseResponse<String> = {
                 meta: {
                     success: true,
@@ -57,9 +56,10 @@ app.post('/init-email-confirm', async (req, res) => {
 app.post('/confirm-email-by-code', (req, res) => {
     // TODO: required fields check
     const {code, email} = (req.body as EmailConfirmByCodeBody);
-    if (code === pendingEmails[email]) {
+    if (code === pendingEmails.get(email)) {
         const token = createToken();
-        savedTokens[email] = token;
+        savedTokens.set(email, token);
+        pendingEmails.delete(email);
         const response: BaseResponse<String> = {
             meta: {
                 success: true,
@@ -82,7 +82,7 @@ app.post('/confirm-email-by-code', (req, res) => {
 
 app.post('/login-by-token', (req, resp) => {
     const {email, token} = req.body as LoginByTokenReqBody;
-    if (savedTokens[email] && savedTokens[email] === token) {
+    if (savedTokens.has(email) && savedTokens.get(email) === token) {
         const response: BaseResponse<string> = {
             meta: {
                 success: true,
@@ -128,5 +128,9 @@ function sendCodeToEmail(code: string, reciever: string) {
 
 function createToken() {
     return crypto.randomBytes(30).toString('hex');
+}
+
+function generateRandomCode() {
+    return (Math.random() * 1000).toPrecision(3);
 }
 
