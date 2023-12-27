@@ -8,15 +8,32 @@ import 'dotenv/config'
 import crypto from 'crypto';
 import { LoginByTokenReqBody } from './types/login-by-token';
 import { make } from 'simple-body-validator';
+import { DataTypes, Model, Sequelize } from 'sequelize';
 
 const PORT = 5000;
 const app = express();
+const sequelize = new Sequelize({
+    dialect: 'sqlite',
+    storage: './db/sqlite.db'
+});
 
 app.use(cors());
 app.use(bodyParser.json());
 
 const pendingEmails = new Map<string, string>();
 const savedTokens = new Map<string, string>();
+
+const Review = sequelize.define('Review', {
+    productID: DataTypes.INTEGER,
+    content: DataTypes.TEXT,
+    reviewId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+    }
+}, {
+    timestamps: false,
+    tableName: 'Reviews'
+});
 
 app.get('/', (req, res) => {
     res.send({hello: 'welcome to the api'});
@@ -110,6 +127,55 @@ app.post('/login-by-token', (req, resp) => {
             resp.send(response);
         }
     })
+});
+
+app.get('/reviews', async (req, resp) => {
+    if (!req.query.productID) {
+        const response: BaseResponse<undefined> = {
+            meta: {
+                success: false,
+                error:'Query param productID is not provided'
+            }
+        };
+        resp.send(response);
+        return
+    }
+    const reviews = await Review.findAll({where: {productID: req.query.productID}});
+    const response: BaseResponse<Model[]> = {
+        meta: {
+            success: true,
+            error: ''
+        },
+        data: reviews
+    }
+    resp.send(response)
+});
+
+app.post('/review', async(req, resp) => {
+    handlePostReq(req, resp, {productID: "required|integer", content: "required|string|min:3"}, async() => {
+        try {
+            const {productID, content} = req.body;
+            await Review.create({
+                productID, content
+            });
+            const updatedReviews = await Review.findAll({where:{ productID }});
+            const response: BaseResponse<Model[]> = {
+                meta: {
+                    success: true,
+                    error: ''
+                }, data: updatedReviews
+            }
+            resp.send(response);
+        } catch {
+            const response: BaseResponse<undefined> = {
+                meta: {
+                    success: false,
+                    error: 'Error while creating entity in database'
+                }
+            }
+            resp.send(response);
+        }
+    });
 });
 
 
