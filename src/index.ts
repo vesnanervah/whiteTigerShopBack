@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import { LoginByTokenReqBody } from './types/login-by-token';
 import { make } from 'simple-body-validator';
 import { DataTypes, Model, Sequelize } from 'sequelize';
+import { SuccessLoginBody } from './types/success-login-body';
 
 const PORT = 5000;
 const app = express();
@@ -31,6 +32,8 @@ const User = sequelize.define('User', {
     },
     email: DataTypes.TEXT,
     balance: DataTypes.INTEGER,
+    name: DataTypes.TEXT,
+    adress: DataTypes.TEXT
 }, {
     timestamps: false,
     tableName: 'Users'
@@ -98,18 +101,38 @@ app.post('/confirm-email-by-code', (req, res) => {
             const token = createToken();
             savedTokens.set(email, token);
             pendingEmails.delete(email);
-            const response: BaseResponse<String> = {
+            const user = await User.findOne({where:{email}});
+            if (user) {
+                const response: BaseResponse<SuccessLoginBody> = {
+                    meta: {
+                        success: true,
+                        error: ''
+                    },
+                    data: {
+                        token,
+                        email,
+                        adress: user.dataValues['adress'],
+                        balance: user.dataValues['balance'],
+                        name: user.dataValues['name'],
+                    }
+                }
+                return res.send(response);
+            }
+            await User.create({email, balance: 0})
+            const response: BaseResponse<SuccessLoginBody> = {
                 meta: {
                     success: true,
                     error: ''
                 },
-                data: token
+                data: {
+                    token,
+                    email,
+                    adress: null,
+                    balance: 0,
+                    name: null,
+                }
             }
-            const user = await User.findOne({where:{email}});
-            if (!user) {
-                await User.create({email, balance: 0});
-            }
-            res.send(response);
+            return res.send(response);
         } else {
             const response: BaseResponse<undefined> = {
                 meta: {
@@ -240,7 +263,6 @@ app.post('/update-balance', (req, resp) => handlePostReq(req, resp, {email: "req
         return resp.send(response);
     }
     const updatedBalance = (user?.dataValues['balance'] + sum) as number;
-    console.log(updatedBalance);
     await User.update({balance: updatedBalance}, {where: {email}});
     const response: BaseResponse<number> = {
         meta: {
@@ -252,6 +274,27 @@ app.post('/update-balance', (req, resp) => handlePostReq(req, resp, {email: "req
     resp.send(response);
 }));
 
+
+app.post('/update-name', (req, resp) => handlePostReq(req, resp, {email: 'required|string', token: 'required|string', name: 'required|string'}, async () => {
+    const {email, token, name} = req.body;
+    if (savedTokens.get(email) !== token) {
+        const response: BaseResponse<undefined> = {
+            meta: {
+                success: false,
+                error: 'Неавторизированное действие!'
+            }
+        }
+        return resp.send(response);
+    }
+    await User.update({name},{ where: {email}});
+    const response: BaseResponse<undefined> = {
+        meta: {
+            success: true,
+            error:''
+        }
+    };
+    return resp.send(response);
+}));
 
 app.listen(PORT, () => {
     console.log('The server is online on port: ' + PORT);
