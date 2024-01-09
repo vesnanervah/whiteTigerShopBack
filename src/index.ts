@@ -23,6 +23,19 @@ app.use(bodyParser.json());
 const pendingEmails = new Map<string, string>();
 const savedTokens = new Map<string, string>();
 
+const User = sequelize.define('User', {
+    userID: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+    },
+    email: DataTypes.TEXT,
+    balance: DataTypes.INTEGER,
+}, {
+    timestamps: false,
+    tableName: 'Users'
+});
+
 const Review = sequelize.define('Review', {
     productID: DataTypes.INTEGER,
     content: DataTypes.TEXT,
@@ -91,7 +104,11 @@ app.post('/confirm-email-by-code', (req, res) => {
                     error: ''
                 },
                 data: token
-            } 
+            }
+            const user = await User.findOne({where:{email}});
+            if (!user) {
+                await User.create({email, balance: 0});
+            }
             res.send(response);
         } else {
             const response: BaseResponse<undefined> = {
@@ -178,6 +195,63 @@ app.post('/review', async(req, resp) => {
     });
 });
 
+app.post('/balance', (req, resp) => handlePostReq(req, resp, {email: "required", token: "required|string"}, async () => {
+    const {email, token} = req.body;
+    if (savedTokens.get(email) !== token) {
+        const response: BaseResponse<undefined> = {
+            meta: {
+                success: false,
+                error: 'Неавторизованное действие!'
+            }
+        }
+        return resp.send(response);
+    }
+    const user = await User.findOne({where: {email}});
+    const balance = user?.dataValues['balance'] ?? 0;
+    const response: BaseResponse<undefined> = {
+        meta: {
+            success: true,
+            error: ''
+        },
+        data: balance
+    };
+    resp.send(response);
+}));
+
+app.post('/update-balance', (req, resp) => handlePostReq(req, resp, {email: "required|string", token: "required|string", sum: "required|integer"}, async() => {
+    const {email, token, sum} = req.body;
+    if (savedTokens.get(email) !== token) {
+        const response: BaseResponse<undefined> = {
+            meta: {
+                success: false,
+                error: 'Неавторизованное действие!'
+            }
+        }
+        return resp.send(response);
+    }
+    const user = await User.findOne({where: {email}});
+    if (user?.dataValues['balance'] + sum < 0) {
+        const response: BaseResponse<undefined> = {
+            meta: {
+                success: false,
+                error: 'Недостаточно средств'
+            }
+        };
+        return resp.send(response);
+    }
+    const updatedBalance = (user?.dataValues['balance'] + sum) as number;
+    console.log(updatedBalance);
+    await User.update({balance: updatedBalance}, {where: {email}});
+    const response: BaseResponse<number> = {
+        meta: {
+            success: true,
+            error: ''
+        },
+        data: updatedBalance
+    };
+    resp.send(response);
+}));
+
 
 app.listen(PORT, () => {
     console.log('The server is online on port: ' + PORT);
@@ -228,6 +302,7 @@ function checkPostBodyExist(req: Request, resp: Response) {
 
 function validatePostBody(resp: Response, data: {[index: string]: string}, rules: {[index: string]: string}) {
     const validator = make(data, rules);
+    console.log(data);
     if (validator.stopOnFirstFailure().validate())return true;
     const response: BaseResponse<undefined> = {
         meta: {
