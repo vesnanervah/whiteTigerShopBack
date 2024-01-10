@@ -296,6 +296,27 @@ app.post('/update-name', (req, resp) => handlePostReq(req, resp, {email: 'requir
     return resp.send(response);
 }));
 
+app.post('/update-adress', (req, resp) => handlePostReq(req, resp, {email: 'required|string', token: 'required|string', adress: 'required|string'}, async () => {
+    const {email, token, adress} = req.body;
+    if (savedTokens.get(email) !== token) {
+        const response: BaseResponse<undefined> = {
+            meta: {
+                success: false,
+                error: 'Неавторизированное действие!'
+            }
+        }
+        return resp.send(response);
+    }
+    await User.update({adress},{ where: {email}});
+    const response: BaseResponse<undefined> = {
+        meta: {
+            success: true,
+            error:''
+        }
+    };
+    return resp.send(response);
+}));
+
 app.listen(PORT, () => {
     console.log('The server is online on port: ' + PORT);
 });
