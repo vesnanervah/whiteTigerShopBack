@@ -110,10 +110,12 @@ app.post('/confirm-email-by-code', (req, res) => {
                     },
                     data: {
                         token,
-                        email,
-                        adress: user.dataValues['adress'],
-                        balance: user.dataValues['balance'],
-                        name: user.dataValues['name'],
+                        user: {
+                            email,
+                            adress: user.dataValues['adress'],
+                            balance: user.dataValues['balance'],
+                            name: user.dataValues['name'],
+                        }
                     }
                 }
                 return res.send(response);
@@ -126,10 +128,12 @@ app.post('/confirm-email-by-code', (req, res) => {
                 },
                 data: {
                     token,
-                    email,
-                    adress: null,
-                    balance: 0,
-                    name: null,
+                    user: {
+                        email,
+                        adress: null,
+                        balance: 0,
+                        name: null,
+                    }
                 }
             }
             return res.send(response);
@@ -146,17 +150,26 @@ app.post('/confirm-email-by-code', (req, res) => {
 });
 
 app.post('/login-by-token', (req, resp) => {
-    handlePostReq(req, resp, {"email": "required|string|email", "token": "required|string"}, () => {
+    handlePostReq(req, resp, {"email": "required|string|email", "token": "required|string"}, async () => {
         const {email, token} = req.body as LoginByTokenReqBody;
         if (savedTokens.has(email) && savedTokens.get(email) === token) {
-            const response: BaseResponse<string> = {
-                meta: {
-                    success: true,
-                    error: ''
-                }, 
-                data: 'Successful loged in'
-            }
-            resp.send(response);
+            const user = await User.findOne({where:{email}});
+                const response: BaseResponse<SuccessLoginBody> = {
+                    meta: {
+                        success: true,
+                        error: ''
+                    },
+                    data: {
+                        token,
+                        user: {
+                            email,
+                            adress: user!.dataValues['adress'],
+                            balance: user!.dataValues['balance'] ?? 0,
+                            name: user!.dataValues['name'],
+                        }
+                    }
+                }
+            return resp.send(response);
         } else {
             const response: BaseResponse<undefined> = {
                 meta: {

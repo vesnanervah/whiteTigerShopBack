@@ -1,9 +1,8 @@
+import { User } from "./user";
+
 type SuccessLoginBody = {
     token: string,
-    email: string | null,
-    name: string | null,
-    adress: string | null,
-    balance: number
+    user: User,
 };
  
 export {SuccessLoginBody};
